@@ -21,21 +21,26 @@
 #include <libevdev/libevdev-uinput.h>
 
 // clang-format off
+const int KEY_UP_VAL = 0;
+const int KEY_DOWN_VAL = 1;
+const int KEY_REPEAT_VAL = 2;
 const struct input_event
-esc_up          = {.type = EV_KEY, .code = KEY_ESC,      .value = 0},
-ctrl_up         = {.type = EV_KEY, .code = KEY_LEFTCTRL, .value = 0},
-capslock_up     = {.type = EV_KEY, .code = KEY_CAPSLOCK, .value = 0},
-esc_down        = {.type = EV_KEY, .code = KEY_ESC,      .value = 1},
-ctrl_down       = {.type = EV_KEY, .code = KEY_LEFTCTRL, .value = 1},
-capslock_down   = {.type = EV_KEY, .code = KEY_CAPSLOCK, .value = 1},
-esc_repeat      = {.type = EV_KEY, .code = KEY_ESC,      .value = 2},
-ctrl_repeat     = {.type = EV_KEY, .code = KEY_LEFTCTRL, .value = 2},
-capslock_repeat = {.type = EV_KEY, .code = KEY_CAPSLOCK, .value = 2};
+esc_up          = {.type = EV_KEY, .code = KEY_ESC,      .value = KEY_UP_VAL},
+ctrl_up         = {.type = EV_KEY, .code = KEY_LEFTCTRL, .value = KEY_UP_VAL},
+capslock_up     = {.type = EV_KEY, .code = KEY_CAPSLOCK, .value = KEY_UP_VAL},
+esc_down        = {.type = EV_KEY, .code = KEY_ESC,      .value = KEY_DOWN_VAL},
+ctrl_down       = {.type = EV_KEY, .code = KEY_LEFTCTRL, .value = KEY_DOWN_VAL},
+capslock_down   = {.type = EV_KEY, .code = KEY_CAPSLOCK, .value = KEY_DOWN_VAL},
+esc_repeat      = {.type = EV_KEY, .code = KEY_ESC,      .value = KEY_REPEAT_VAL},
+ctrl_repeat     = {.type = EV_KEY, .code = KEY_LEFTCTRL, .value = KEY_REPEAT_VAL},
+capslock_repeat = {.type = EV_KEY, .code = KEY_CAPSLOCK, .value = KEY_REPEAT_VAL};
 // clang-format on
 
 int equal(const struct input_event *first, const struct input_event *second) {
-    return first->type == second->type && first->code == second->code &&
-           first->value == second->value;
+    // no need to check for type as all are same and there's already a guard in eventmap()
+    // return first->type == second->type && first->code == second->code &&
+    //        first->value == second->value;
+    return first->code == second->code && first->value == second->value;
 }
 
 int eventmap(const struct input_event *input, struct input_event output[]) {
@@ -50,21 +55,24 @@ int eventmap(const struct input_event *input, struct input_event output[]) {
     }
 
     if (capslock_is_down) {
-        if (equal(input, &capslock_down) || equal(input, &capslock_repeat) ||
-            input->code == KEY_LEFTCTRL) {
+        if (input->code == KEY_CAPSLOCK) {
+            if (input->value == KEY_UP_VAL) {
+                capslock_is_down = 0;
+                if (esc_give_up) {
+                    esc_give_up = 0;
+                    output[0]   = ctrl_up;
+                    return 1;
+                }
+                output[0] = esc_down;
+                output[1] = esc_up;
+                return 2;
+            }
+            // ignore KEY_DOWN and KEY_REPEAT event as flag is already set to down
             return 0;
         }
-        if (equal(input, &capslock_up)) {
-            capslock_is_down = 0;
-            if (esc_give_up) {
-                esc_give_up = 0;
-                output[0]   = ctrl_up;
-                return 1;
-            }
-            output[0] = esc_down;
-            output[1] = esc_up;
-            return 2;
-        }
+        if (input->code == KEY_LEFTCTRL)
+            // ignore this as CAPS held will triggers leftctrl key event
+            return 0;
 
         int k = 0;
 
@@ -73,11 +81,12 @@ int eventmap(const struct input_event *input, struct input_event output[]) {
             output[k++] = ctrl_down;
         }
 
-        output[k++] = *input;
+        output[k] = *input;
 
-        if (output[k - 1].code == KEY_ESC)
-            output[k - 1].code = KEY_CAPSLOCK;
+        if (output[k].code == KEY_ESC)
+            output[k].code = KEY_CAPSLOCK;
 
+        k++;
         return k;
     }
 
@@ -286,6 +295,13 @@ int main(int argc, const char *argv[]) {
     udev_monitor_filter_add_match_subsystem_devtype(monitor, "input", NULL);
     udev_monitor_enable_receiving(monitor);
     int fd = udev_monitor_get_fd(monitor);
+    printf("Usage: ./caps2esc\n\n"
+           "Keymapping:\n"
+           "  [CapsLock] (short press without other keys) = [Esc]\n"
+           "  [CapsLock] + [OtherKey] = [Ctrl] + [OtherKey]\n"
+           "  [CapsLock] + [Esc] = [CapsLock] (back to normal)\n"
+           "\n"
+           );
     for (;;) {
         fd_set fds;
         FD_ZERO(&fds);
