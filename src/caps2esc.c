@@ -73,6 +73,11 @@ int eventmap(const struct input_event *input, struct input_event output[]) {
         if (input->code == KEY_LEFTCTRL)
             // ignore this as CAPS held will triggers leftctrl key event
             return 0;
+        if (input->code == KEY_ESC) {
+            output[0] = *input;
+            output[0].code = KEY_CAPSLOCK;
+            return 1;
+        }
 
         int k = 0;
 
@@ -83,8 +88,6 @@ int eventmap(const struct input_event *input, struct input_event output[]) {
 
         output[k] = *input;
 
-        if (output[k].code == KEY_ESC)
-            output[k].code = KEY_CAPSLOCK;
 
         k++;
         return k;
