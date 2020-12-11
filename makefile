@@ -1,8 +1,9 @@
 NAME=caps2esc
+SRC=src/*.c
 
 install: pkg
 
-pkg:
+pkg: $(SRC) PKGBUILD
 	makepkg -i --noextract
 
 clean:

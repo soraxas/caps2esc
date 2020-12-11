@@ -1,11 +1,11 @@
 # Maintainer: Francisco Lopes <francisco@oblita.com>
 pkgname=caps2esc
-pkgver=1.0.4
+pkgver=1.1.0
 pkgrel=3
 pkgdesc="caps2esc: transforming the most useless key ever in the most useful one"
 arch=('x86_64')
 license=('GPL3')
-url="https://github.com/oblitum/caps2esc"
+url="https://github.com/soraxas/caps2esc"
 depends=('libevdev')
 makedepends=('gcc')
 source=()
