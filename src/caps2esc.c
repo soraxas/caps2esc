@@ -49,62 +49,58 @@ int eventmap(const struct input_event *input, struct input_event output[]) {
     if (input->type == EV_MSC && input->code == MSC_SCAN)
         return 0;
 
-    if (input->type != EV_KEY) {
-        output[0] = *input;
-        return 1;
-    }
-
-    if (capslock_is_down) {
-        if (input->code == KEY_CAPSLOCK) {
-            if (input->value == KEY_UP_VAL) {
-                capslock_is_down = 0;
-                if (esc_give_up) {
-                    esc_give_up = 0;
-                    output[0]   = ctrl_up;
-                    return 1;
+    if (input->type == EV_KEY) {
+        
+        if (capslock_is_down) {
+            if (input->code == KEY_CAPSLOCK) {
+                if (input->value == KEY_UP_VAL) {
+                    capslock_is_down = 0;
+                    if (esc_give_up) {
+                        esc_give_up = 0;
+                        output[0]   = ctrl_up;
+                        return 1;
+                    }
+                    output[0] = esc_down;
+                    output[1] = esc_up;
+                    return 2;
                 }
-                output[0] = esc_down;
-                output[1] = esc_up;
-                return 2;
+                // ignore KEY_DOWN and KEY_REPEAT event as flag is already set to down
+                return 0;
             }
-            // ignore KEY_DOWN and KEY_REPEAT event as flag is already set to down
-            return 0;
+            if (input->code == KEY_LEFTCTRL)
+                // ignore this as CAPS held will triggers leftctrl key event
+                return 0;
+            if (input->code == KEY_ESC) {
+                output[0] = *input;
+                output[0].code = KEY_CAPSLOCK;
+                esc_give_up = 1;
+                return 1;
+            }
+
+            int k = 0;
+
+            if (!esc_give_up && input->value) {
+                esc_give_up = 1;
+                output[k++] = ctrl_down;
+            }
+
+            output[k] = *input;
+
+            k++;
+            return k;
         }
-        if (input->code == KEY_LEFTCTRL)
-            // ignore this as CAPS held will triggers leftctrl key event
-            return 0;
-        if (input->code == KEY_ESC) {
-            output[0] = *input;
-            output[0].code = KEY_CAPSLOCK;
-            return 1;
+
+        else if (input->code == KEY_CAPSLOCK) {
+            // put the check of keycode outside to fail faster for performance reason
+            if (input->value == KEY_DOWN_VAL) {
+                capslock_is_down = 1;
+                return 0;
+            }
         }
-
-        int k = 0;
-
-        if (!esc_give_up && input->value) {
-            esc_give_up = 1;
-            output[k++] = ctrl_down;
-        }
-
-        output[k] = *input;
-
-
-        k++;
-        return k;
     }
 
-    if (equal(input, &capslock_down)) {
-        capslock_is_down = 1;
-        return 0;
-    }
-
+    // return original inputs
     output[0] = *input;
-
-    // only allow mappings from Esc to CapsLock passes when CapsLock is being held
-    // i.e. Esc is at its original state, and maps to CapsLock when CapsLock is held.
-    /* if (output[0].code == KEY_ESC) */
-    /*     output[0].code = KEY_CAPSLOCK; */
-
     return 1;
 }
 
